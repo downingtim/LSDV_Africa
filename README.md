@@ -7,4 +7,5 @@ One subgroup was associated with outbreaks of LSD in the Middle East/Europe (cla
 Isolates were also identified that contained a mix of genes from both wildtype and vaccine samples (vaccine-like recombinants, grouped in clade 2)
 Whole genome sequencing and analysis of LSDV strains isolated from different regions of Africa, Europe and Asia have provided new knowledge of the drivers of LSDV emergence, and will inform future disease control strategies. ![image](https://github.com/downingtim/LSDV_Africa/assets/12896905/3c81d72e-1049-4122-b708-41ecf4f6fe1c)
 
-The code creates the (most of the) plots, visualisations and graphic used in the paper.
+The code creates the (most of the) plots,
+visualisations and graphic used in the paper.
