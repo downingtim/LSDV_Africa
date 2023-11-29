@@ -1,0 +1,351 @@
+---
+title: "fastBaPS"
+---
+
+```{r}
+update.packages(ask=F)
+knitr::opts_chunk$set(echo = TRUE) # from https://github.com/gtonkinhill/fastbaps
+BiocManager::install("ggtree", ask=F)
+BiocManager::install("phytools", ask=F)
+BiocManager::install("ggplot2", ask=F)
+BiocManager::install("treeio", ask=F)
+install.packages("ape", ask=F)
+install.packages("devtools", ask=F)
+
+devtools::install_github("gtonkinhill/fastbaps", force=T, type="source")
+library(fastbaps) # Load libraries
+library(ggtree)   # ggtree v2.4.1
+library(phytools) # phytools v0.7-70
+library(ggplot2)  # ggplot v2_3.3.3
+library(ape)      # ape v5.5
+library(treeio)   # treeio v1.14.3
+library(grid)
+library(Rcpp)
+library(RcppArmadillo)
+
+samples = c()
+
+#more all.vcf.fasta | perl -e 'while(<>){  $_=~ s/EthiopiaE1_S1/LSDV_Ethiopia_3/g; $_=~ s/EthiopiaE3_S2/LSDV_Ethiopia_2/g; $_=~ s/EthiopiaE7_S3/LSDV_Ethiopia_1/g; $_=~ s/EthiopiaE21_S4/LSDV_Ethiopia_4/g;  $_=~ s/MongoliaM2_S5/LSDV_Mongolia_2/g; $_=~ s/MongoliaM5_S6/LSDV_Mongolia_1/g;  $_=~ s/NigeriaBokkasS10/LSDV_Nigeria/g; print "$_"; } ' > all_vcf.fasta
+
+
+# more RAxML_bestTree.all.135260.144180.tre | perl -e 'while(<>){  $_=~ s/EthiopiaE1_S1/LSDV_Ethiopia_3/g; $_=~ s/EthiopiaE3_S2/LSDV_Ethiopia_2/g; $_=~ s/EthiopiaE7_S3/LSDV_Ethiopia_1/g; $_=~ s/EthiopiaE21_S4/LSDV_Ethiopia_4/g;  $_=~ s/MongoliaM2_S5/LSDV_Mongolia_2/g; $_=~ s/MongoliaM5_S6/LSDV_Mongolia_1/g;  $_=~ s/NigeriaBokkasS10/LSDV_Nigeria/g; print "$_"; } ' > RAxML_bestTree.135260.144180.tre
+
+# mafft --thread 50 --auto all_vcf.fasta  > all.vcf.aln
+# mafft --thread 50 --auto core_vcf.fasta  > core.vcf.aln
+# mafft --thread 50 --auto core18_vcf.fasta  > core.18.vcf.aln
+# mafft --thread 50 --auto 3end_vcf.fasta  > 3end.vcf.aln
+# mafft --thread 50 --auto 5end_vcf.fasta  > 5end.vcf.aln
+
+# /Users/timdowning/opt/anaconda3/bin/raxml-ng --all --msa all.vcf.aln --model GTR+G --prefix all --seed 21 --redo --bs-metric fbp,tbe
+# 2,082 alignment patterns, gaps 0.3%
+# /Users/timdowning/opt/anaconda3/bin/raxml-ng --all --msa core.vcf.aln --model GTR+G --prefix core --seed 211  --redo  --bs-metric fbp,tbe
+# 939 alignment patterns, gaps 0.03%
+# /Users/timdowning/opt/anaconda3/bin/raxml-ng --all --msa core.18.vcf.aln --model GTR+G --prefix core18 --seed 121  --redo --bs-metric fbp,tbe
+# 939 alignment patterns, gaps 0.01%
+# /Users/timdowning/opt/anaconda3/bin/raxml-ng --all --msa 5end.vcf.aln --model GTR+G --prefix 5end --seed 213  --redo  --bs-metric fbp,tbe
+# 283 alignment patterns, gaps 1.8%
+# /Users/timdowning/opt/anaconda3/bin/raxml-ng --all --msa 3end.vcf.aln --model GTR+G --prefix 3end --seed 2133  --redo  --bs-metric fbp,tbe
+# 852 alignment patterns, gaps 0.5%
+
+setwd("~/Desktop/TPI _WORK/LSDV_Beard_2022/Tree_FILES/")
+
+# all genome
+fastaname = "all.vcf.aln"
+treename = "all.raxml.bestTree"
+fastbapsplot = paste0("Figure_S2_A_", fastaname, ".pdf", sep="")
+heatmapplot = paste0("Figure_S1_A_", fastaname, ".pdf", sep="")
+sparse.data <-import_fasta_sparse_nt(fastaname)
+   # do clustering, get dk values, then Bayesian clustering
+sparse.data <- optimise_prior(sparse.data, type="optimise.symmetric")
+   # hyperparameter: 0.005 for core
+best.partition <- best_baps_partition(sparse.data, fast_baps(sparse.data))
+   # partition model
+plot.df <-data.frame(id=colnames(sparse.data$snp.matrix),
+                        fastbaps=best.partition, stringsAsFactors=F)
+   
+off <- 0.22
+gg <- ggtree(midpoint.root(ladderize(read.tree(treename)))) +
+ # geom_text(aes(label=node),hjust=-.3,size=2)   +
+     geom_tiplab(hjust=0, size=4) + geom_treescale()  +
+geom_cladelabel(node=38, label="Clade 1.2.2", offset=off,color="blue")+
+geom_cladelabel(node=26, label="Clade 1.2.3", offset=off, color="green")+
+geom_cladelabel(node=36, label="Clade 2", offset=off/2, color="black")+
+geom_cladelabel(node=16, label="Clade 1.1", offset=off, color="black")+
+geom_cladelabel(node=31, label="Clade 1.2.1", offset=off, color="red") +
+geom_cladelabel(node=12, label="", offset=off, color="red") +
+          geom_hilight(node=38, fill="blue") +
+          geom_hilight(node=26, fill="green") +
+          geom_hilight(node=31, fill="red")   +
+          geom_hilight(node=12, fill="red")       
+pdf(fastbapsplot)
+flip( (gg), 43, 37) + coord_cartesian(clip='off') +
+  theme_tree2(plot.margin=margin(6,80,6,6))
+dev.off()
+
+dendro <- as.dendrogram(fast_baps(sparse.data)) # Heatmap
+pdf(heatmapplot) #  
+print(gplots::heatmap.2(boot_fast_baps(sparse.data), dendro, dendro,
+                   tracecol=NA, margins=c(8,8), key=F))
+dev.off() # end function plotstuff
+
+
+# core genome
+fastaname = "core.vcf.aln"
+treename = "core.raxml.bestTree"
+fastbapsplot = paste0("Figure_1_A", fastaname, ".pdf", sep="")
+heatmapplot = paste0("Heatmap_", fastaname, ".pdf", sep="")
+sparse.data <-import_fasta_sparse_nt(fastaname)
+   # do clustering, get dk values, then Bayesian clustering
+sparse.data <- optimise_prior(sparse.data, type="optimise.symmetric")
+   # hyperparameter: 0.005 for core
+best.partition <- best_baps_partition(sparse.data, fast_baps(sparse.data))
+   # partition model
+plot.df <-data.frame(id=colnames(sparse.data$snp.matrix),
+                        fastbaps=best.partition, stringsAsFactors=F)
+   
+off <- 0.2
+gg <- ggtree(ladderize(midpoint.root(read.tree(treename)))) +
+     geom_tiplab(hjust=0, size=3) + geom_treescale()  +
+  geom_text(aes(label=node),hjust=-.3,size=0) +
+geom_cladelabel(node=27, label="Clade 1.2.2", offset=off/1.14, color="blue")+
+geom_cladelabel(node=24, label="Clade 1.2.3", offset=off, color="green")+
+geom_cladelabel(node=9, label="Clade 2", offset=off*1.1, color="black")+
+geom_cladelabel(node=7, label="Clade 1.1", offset=off/2, color="black")+
+geom_cladelabel(node=34, label="Clade 1.2.1", offset=off, color="red") +
+          geom_hilight(node=27, fill="blue") +
+          geom_hilight(node=24, fill="green") +
+          geom_hilight(node=34, fill="red")    +
+          geom_hilight(node=32, fill="grey")         
+pdf(fastbapsplot)
+gg + coord_cartesian(clip='off') +theme_tree2(plot.margin=margin(6,60,6,6))
+dev.off()
+
+dendro <- as.dendrogram(fast_baps(sparse.data)) # Heatmap
+pdf(heatmapplot) #  
+print(gplots::heatmap.2(boot_fast_baps(sparse.data), dendro, dendro,
+                   tracecol=NA, margins=c(8,8), key=F))
+dev.off() # end function plotstuff
+
+######## core genome 18 ######## ######## ######## ######## 
+fastaname = "core.18.vcf.aln"
+treename = "core18.raxml.bestTree"
+fastbapsplot = paste0("Figure_1_B", fastaname, ".pdf", sep="")
+heatmapplot = paste0("Heatmap_", fastaname, ".pdf", sep="")
+sparse.data <-import_fasta_sparse_nt(fastaname)
+   # do clustering, get dk values, then Bayesian clustering
+sparse.data <- optimise_prior(sparse.data, type="optimise.symmetric")
+   # hyperparameter: 0.02 
+best.partition <- best_baps_partition(sparse.data, fast_baps(sparse.data))
+   # partition model
+plot.df <-data.frame(id=colnames(sparse.data$snp.matrix),
+                        fastbaps=best.partition, stringsAsFactors=F)
+
+off <- 0.014
+gg <- ggtree(ladderize(midpoint.root(read.tree(treename))))    +
+     geom_tiplab(hjust=0, size=3) +geom_treescale(fontsize=3.5, offset=.1) +
+ #  geom_text(aes(label=node),hjust=-.3,size=0) +
+  geom_cladelabel(node=23, label="Clade 1.2.2", offset=off/1.14, color="blue")+
+geom_cladelabel(node=25, label="Clade 1.2.3", offset=off, color="green")+
+geom_cladelabel(node=29, label="Clade 1.2.1", offset=off, color="red")   
+pdf(fastbapsplot)
+gg + coord_cartesian(clip='off') +theme_tree2(plot.margin=margin(6,80,6,6))
+dev.off()
+
+dendro <- as.dendrogram(fast_baps(sparse.data)) # Heatmap
+pdf(heatmapplot) #  
+print(gplots::heatmap.2(boot_fast_baps(sparse.data), dendro, dendro,
+                   tracecol=NA, margins=c(8,8), key=F))
+dev.off() # end function plotstuff
+
+# 5end genome
+fastaname = "5end.vcf.aln"
+treename = "5end.raxml.bestTree"
+fastbapsplot = paste0("Figure_S2_C", fastaname, ".pdf", sep="")
+heatmapplot = paste0("Heatmap_", fastaname, ".pdf", sep="")
+sparse.data <-import_fasta_sparse_nt(fastaname)
+   # do clustering, get dk values, then Bayesian clustering
+sparse.data <- optimise_prior(sparse.data, type="optimise.symmetric")
+   # hyperparameter: 0.005 for core
+best.partition <- best_baps_partition(sparse.data, fast_baps(sparse.data))
+   # partition model
+plot.df <-data.frame(id=colnames(sparse.data$snp.matrix),
+                        fastbaps=best.partition, stringsAsFactors=F)
+   
+off <- 0.14
+gg <- ggtree(ladderize(midpoint.root(read.tree(treename)))) +
+     geom_tiplab(hjust=0, size=3) + geom_treescale()  +
+ # geom_text(aes(label=node),hjust=-.3,size=2)   +
+geom_cladelabel(node=38, label="Clade 1.2.2", offset=off/1.14, color="blue")+
+geom_cladelabel(node=7, label="Clade 1.2.3", offset=off, color="green")+
+geom_cladelabel(node=8, label="Clade 1.2.3", offset=off*1.3, color="green")+
+geom_cladelabel(node=4, label="Clade 2", offset=off, color="black")+
+geom_cladelabel(node=1, label="Clade 1.1", offset=off, color="black")+
+geom_cladelabel(node=32, label="Clade 1.2.1", offset=off*1.2, color="red") +
+geom_hilight(node=38, fill="blue") + geom_hilight(node=8, fill="green") +
+geom_hilight(node=32, fill="red")  + geom_hilight(node=16, fill="green") + geom_hilight(node=7, fill="green") + geom_hilight(node=1, fill="black")+
+geom_hilight(node=6, fill="green")+ geom_hilight(node=5, fill="green")+
+geom_hilight(node=2, fill="grey")   + geom_hilight(node=30, fill="grey")   +
+geom_hilight(node=3, fill="grey")   + geom_hilight(node=29, fill="grey")   +
+geom_hilight(node=4, fill="grey")    
+pdf(fastbapsplot)
+gg + coord_cartesian(clip='off') +theme_tree2(plot.margin=margin(6,80,6,6))
+dev.off()
+
+dendro <- as.dendrogram(fast_baps(sparse.data)) # Heatmap
+pdf(heatmapplot) #  
+print(gplots::heatmap.2(boot_fast_baps(sparse.data), dendro, dendro,
+                   tracecol=NA, margins=c(8,8), key=F))
+dev.off() # end function plotstuff
+
+# 3end genome
+fastaname = "3end.vcf.aln"
+treename = "3end.raxml.bestTree"
+fastbapsplot = paste0("Figure_S2_D", fastaname, ".pdf", sep="")
+heatmapplot = paste0("Heatmap_", fastaname, ".pdf", sep="")
+sparse.data <-import_fasta_sparse_nt(fastaname)
+   # do clustering, get dk values, then Bayesian clustering
+sparse.data <- optimise_prior(sparse.data, type="optimise.symmetric")
+   # hyperparameter: 0.005 for core
+best.partition <- best_baps_partition(sparse.data, fast_baps(sparse.data))
+   # partition model
+plot.df <-data.frame(id=colnames(sparse.data$snp.matrix),
+                        fastbaps=best.partition, stringsAsFactors=F)
+   
+off <- 0.15
+gg <- ggtree(ladderize(midpoint.root(read.tree(treename)))) +
+     geom_tiplab(hjust=0, size=3) + geom_treescale()  +
+ # geom_text(aes(label=node),hjust=-.3,size=3)   +
+geom_cladelabel(node=32, label="Clade 1.2.2", offset=off, color="blue")+
+geom_cladelabel(node=25, label="Clade 1.2.3", offset=off, color="green")+
+geom_cladelabel(node=31, label="Clade 2", offset=off, color="grey")+
+geom_cladelabel(node=9, label="Clade 1.1", offset=off, color="black")+
+geom_cladelabel(node=37, label="Clade 1.2.1", offset=off, color="red") +
+geom_hilight(node=32, fill="blue") +  
+geom_hilight(node=37, fill="red")  +  
+geom_hilight(node=9, fill="black")+
+geom_hilight(node=25, fill="green")+    
+geom_hilight(node=31, fill="grey")   +
+  geom_hilight(node=8, fill="grey")  
+pdf(fastbapsplot)
+gg + coord_cartesian(clip='off') +theme_tree2(plot.margin=margin(6,35,6,6))
+dev.off()
+
+dendro <- as.dendrogram(fast_baps(sparse.data)) # Heatmap
+pdf(heatmapplot) #  
+print(gplots::heatmap.2(boot_fast_baps(sparse.data), dendro, dendro,
+                   tracecol=NA, margins=c(8,8), key=F))
+dev.off() # end function plotstuff
+
+########### mid section ########### ########### ########### 
+treename = "RAxML_bestTree.67250.99575.tre"
+fastbapsplot =  "Figure_67250.99575.pdf"
+
+off <- 0.155 # read nexus!
+gg <- ggtree(ladderize(midpoint.root(read.nexus(treename)))) +
+     geom_tiplab(hjust=0, size=3) + geom_treescale()  +
+  geom_text(aes(label=node),hjust=-.3,size=0)   +
+geom_cladelabel(node=24, label="Clade 1.2.2", offset=off, color="blue")+
+geom_cladelabel(node=29, label="Clade 1.2.3", offset=off*1.2, color="green")+
+geom_cladelabel(node=15, label="Clade 2", offset=off*1.5, color="grey")+
+geom_cladelabel(node=17, label="Clade 1.1", offset=off, color="black")+
+geom_cladelabel(node=32, label="Clade 1.2.1", offset=off*1.4, color="red") +
+geom_hilight(node=13, fill="blue") + geom_hilight(node=24, fill="blue") +  
+geom_hilight(node=32, fill="red")  +  
+geom_hilight(node=29, fill="green")+geom_hilight(node=5, fill="green")+ 
+geom_hilight(node=15, fill="grey")  +    
+geom_hilight(node=16, fill="grey") +  geom_hilight(node=14, fill="grey")+
+geom_hilight(node=38, fill="grey")  +
+  geom_hilight(node=39, fill="grey")  
+pdf(fastbapsplot)
+gg + coord_cartesian(clip='off') +theme_tree2(plot.margin=margin(6,35,6,6))
+dev.off()
+
+# part 2
+treename = "RAxML_bestTree.nonrecombcore.tre"
+fastbapsplot =  "Figure_2B.pdf"
+
+off <- 0.15 # read nexus!
+gg <- ggtree(ladderize(midpoint.root(read.nexus(treename)))) +
+     geom_tiplab(hjust=0, size=3) + geom_treescale()  +
+  geom_text(aes(label=node),hjust=-.3,size=0)   +
+geom_cladelabel(node=25, label="Clade 1.2.2", offset=off, color="blue")+
+geom_cladelabel(node=37, label="Clade 1.2.3", offset=off*1.4, color="green")+
+geom_cladelabel(node=27, label="Clade 2", offset=off*1.5, color="grey")+
+geom_cladelabel(node=1, label="Clade 1.1", offset=off*0.9, color="black")+
+geom_cladelabel(node=31, label="Clade 1.2.1", offset=off*1.5, color="red") +
+geom_hilight(node=25, fill="blue") +  
+geom_hilight(node=31, fill="red")  +  
+geom_hilight(node=37, fill="green")+geom_hilight(node=5, fill="blue")+ 
+geom_hilight(node=28, fill="grey")  +    
+geom_hilight(node=27, fill="grey") 
+pdf(fastbapsplot)
+gg + coord_cartesian(clip='off') +theme_tree2(plot.margin=margin(6,40,6,6))
+dev.off()
+
+
+###########################
+# whole genome for 18
+treename = "RAxML_bestTree.all.18.vcf.raxml.tre"
+fastbapsplot =  "Figure_S3A.pdf"
+
+off <- 0.01 # read nexus!
+gg <- ggtree(ladderize(midpoint.root(read.nexus(treename)))) +
+     geom_tiplab(hjust=0, size=3) + geom_treescale()  +
+  geom_text(aes(label=node),hjust=-.3,size=0)   +
+geom_cladelabel(node=20, label="Clade 1.2.2", offset=off, color="blue")+
+geom_cladelabel(node=22, label="Clade 1.2.3", offset=off*1.2, color="green")+
+geom_cladelabel(node=26, label="Clade 1.2.1", offset=off*1.4, color="red")  
+pdf(fastbapsplot)
+gg + coord_cartesian(clip='off') +theme_tree2(plot.margin=margin(6,35,6,6))
+dev.off()
+
+# 5 end for 18 
+treename = "RAxML_bestTree.5end.18.vcf.raxml.tre"
+fastbapsplot =  "Figure_S3C.pdf"
+
+off <- 0.01 # read nexus!
+gg <- ggtree(ladderize(midpoint.root(read.nexus(treename)))) +
+     geom_tiplab(hjust=0, size=3) + geom_treescale()  +
+  geom_text(aes(label=node),hjust=-.3,size=0)   +
+geom_cladelabel(node=35, label="Clade 1.2.2", offset=off/1.1, color="blue")+
+geom_cladelabel(node=25, label="Clade 1.2.3", offset=off*1.7, color="green")+
+geom_cladelabel(node=21, label="Clade 1.2.1", offset=off*1.2, color="red")  
+pdf(fastbapsplot)
+gg + coord_cartesian(clip='off') +theme_tree2(plot.margin=margin(6,35,6,6))
+dev.off()
+
+# 3 end for 18 
+treename = "RAxML_bestTree.3end.18.vcf.raxml.tre"
+fastbapsplot =  "Figure_S3D.pdf"
+
+off <- 0.005 # read nexus!
+gg <- ggtree(ladderize(midpoint.root(read.nexus(treename)))) +
+     geom_tiplab(hjust=0, size=3) + geom_treescale()  +
+  geom_text(aes(label=node),hjust=-.3,size=0)   +
+geom_cladelabel(node=27, label="Clade 1.2.2", offset=off/1.1, color="blue")+
+geom_cladelabel(node=31, label="Clade 1.2.3", offset=off*1.7, color="green")+
+geom_cladelabel(node=25, label="Clade 1.2.1", offset=off*1.2, color="red")  
+pdf(fastbapsplot)
+gg + coord_cartesian(clip='off') +theme_tree2(plot.margin=margin(6,35,6,6))
+dev.off()
+##########
+
+#  135260-144180 
+treename = "RAxML_bestTree.135260.144180.tre"
+fastbapsplot =  "Figure_S4.pdf"
+
+off <- 0.18 # read nexus!
+gg <- ggtree(ladderize(midpoint.root(read.nexus(treename)))) +
+     geom_tiplab(hjust=0, size=3, align=F) + geom_treescale()  +
+  geom_text(aes(label=node),hjust=-.3,size=0)   +
+geom_cladelabel(node=26, label="Clade 1.2.2", offset=off, color="blue")+
+geom_cladelabel(node=40, label="Clade 1.2.3", offset=off*1.4, color="green")+
+geom_cladelabel(node=41, label="Clade 2", offset=off*1.4, color="grey")+
+geom_cladelabel(node=17, label="Clade 1.1", offset=off*0.8, color="black")+
+geom_cladelabel(node=35, label="Clade 1.2.1", offset=off*1.4, color="red")  
+pdf(fastbapsplot)
+gg + coord_cartesian(clip='off') +theme_tree2(plot.margin=margin(6,35,6,6))
+dev.off()
+##########
+
+```
