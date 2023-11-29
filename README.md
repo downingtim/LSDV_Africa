@@ -17,7 +17,7 @@ Europe and Asia have provided new knowledge of the drivers of LSDV emergence, an
 disease control strategies. 
 
 The code creates the (most of the) plots,
-visualisations and graphic used in the paper.
+visualisations and graphics used in the paper.
 
 Use "LSDV_phylogenies.Rmd" for the R code.
 
